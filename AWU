@@ -1,0 +1,530 @@
+if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs; exit }
+
+$asciiArt =@" 
+   _____                        .__          __      __.__          ____ ___   __  .__.__   
+  /  _  \   _____ _____    _____|__|____    /  \    /  \__| ____   |    |   \_/  |_|__|  |  
+ /  /_\  \ /     \\__  \  /  ___/  \__  \   \   \/\/   /  |/    \  |    |   /\   __\  |  |  
+/    |    \  Y Y  \/ __ \_\___ \|  |/ __ \_  \        /|  |   |  \ |    |  /  |  | |  |  |__
+\____|__  /__|_|  (____  /____  >__(____  /   \__/\  / |__|___|  / |______/   |__| |__|____/
+        \/      \/     \/     \/        \/         \/          \/    
+   The Utility your mother warned you about!!
+"@
+Write-Host $asciiArt
+Write-Host "Press any key to continue to the main menu..."
+$x = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+ 
+# start menu write host area
+
+function Show-MainMenu {
+    Clear-Host
+    Write-Host "==============Main Menu================"
+    Write-Host "TRD IT Admin App"
+    Write-Host "1. Ping Test"
+    Write-Host "2. Tracert Test"
+    Write-Host "3. Network Adapter Information"
+    Write-Host "4. Device Information"
+    Write-Host "5. Disk Temp file clean"
+    Write-Host "6. IP to FQDN"
+    Write-Host "7. Arp Table"
+    Write-Host "8. Hard disk to Virtual Disk"
+    Write-Host "9. PS Remote Connect Updates"
+    Write-Host "10. Check for specific updates"
+    Write-Host "11. Install specific updates"
+    Write-Host "12. stop disable print spooler"
+    Write-Host "13. OS version and type"
+    Write-Host "=============Menus====================="
+    Write-host "14. App Installers Menu"
+    Write-Host "15. Exit"
+    $choice = Read-Host "Please select an option (1-15)"
+    return $choice
+}
+
+function show-AppInstallersmenu {
+    Clear-Host
+    Write-Host "+++++++++++++App Installers+++++++++++++++++"
+    Write-Host "1. Chrome"
+    Write-Host "2. Firefox"
+    Write-Host "3. unknown"
+    Write-Host "4. return"
+}
+
+# end menu write host area
+
+function Ping-Test {
+    $ipAddress = Read-Host "Enter the IP address to ping"
+    Test-Connection -ComputerName $ipAddress -Count 4
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Tracert-Test {
+    $ipAddress = Read-Host "Enter the IP address for traceroute"
+    tracert $ipAddress
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Network-Adapter-Info {
+    ipconfig /all
+    $saveOption = Read-Host "Would you like to save the output to an HTML file? (yes/no)"
+    if ($saveOption -eq "yes") {
+        ipconfig /all | Out-File -FilePath "C:\NetworkAdapterInfo.html"
+        Write-Host "Information saved to C:\NetworkAdapterInfo.html"
+    }
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Device-Information {
+    $computerName = $env:COMPUTERNAME
+    $domain = (Get-WmiObject Win32_ComputerSystem).Domain
+    $processor = (Get-WmiObject Win32_Processor).Name
+    $ram = [math]::round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+    $uptime = (Get-WmiObject Win32_OperatingSystem).LastBootUpTime
+    $uptime = (Get-Date) - [Management.ManagementDateTimeConverter]::ToDateTime($uptime)
+    $diskInfo = Get-WmiObject Win32_LogicalDisk -Filter "DriveType=3" | 
+                Select-Object DeviceID, @{Name="Size(GB)";Expression={[math]::round($_.Size/1GB,2)}}, 
+                @{Name="FreeSpace(GB)";Expression={[math]::round($_.FreeSpace/1GB,2)}}
+
+    Write-Host "Computer Name: $computerName"
+    Write-Host "Domain: $domain"
+    Write-Host "Processor: $processor"
+    Write-Host "RAM: $ram GB"
+    Write-Host "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
+    Write-Host "Disk Information:"
+    $diskInfo | Format-Table
+
+    $saveOption = Read-Host "Would you like to save the output to an HTML file? (yes/no)"
+    if ($saveOption -eq "yes") {
+        $htmlContent = @"
+        <html>
+        <body>
+        <h1>Device Information</h1>
+        <p>Computer Name: $computerName</p>
+        <p>Domain: $domain</p>
+        <p>Processor: $processor</p>
+        <p>RAM: $ram GB</p>
+        <p>Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes</p>
+        <h2>Disk Information</h2>
+        <table border='1'>
+        <tr><th>DeviceID</th><th>Size(GB)</th><th>FreeSpace(GB)</th></tr>
+"@
+
+        foreach ($disk in $diskInfo) {
+            $htmlContent += "<tr><td>$($disk.DeviceID)</td><td>$($disk.'Size(GB)')</td><td>$($disk.'FreeSpace(GB)')</td></tr>"
+        }
+
+        $htmlContent += @"
+        </table>
+        </body>
+        </html>
+"@
+
+        $htmlContent | Out-File -FilePath "C:\deviceinfo.html"
+        Write-Host "Information saved to C:\deviceinfo.html"
+    }
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Disk-Temp-file-clean {
+    # Define the list of items to clean up
+    $cleanupItems = @(
+        "Downloaded Program Files",
+        "Temporary Internet Files",
+        "Thumbnails",
+        "Recycle Bin",
+        "Windows Error Reporting Archive",
+        "Windows Error Reporting Queue",
+        "Windows Error Reporting System Archive",
+        "Windows Error Reporting System Queue",
+        "Delivery Optimization Files",
+        "DirectX Shader Cache",
+        "Update Cleanup",
+        "Windows Upgrade Log Files",
+        "System error memory dump files",
+        "System archived Windows Error Reporting Files",
+        "Per user archived Windows Error Reporting Files",
+        "System queued Windows Error Reporting Files",
+        "Per user queued Windows Error Reporting Files",
+        "Windows Defender Antivirus",
+        "Windows Defender Antivirus Service"
+)
+
+# Run Disk Cleanup for each item in the list
+        foreach ($item in $cleanupItems) {
+    Write-Host "Cleaning up $item..."
+    Cleanmgr.exe /sagerun:$item
+}
+
+# Empty the Recycle Bin
+    $recycleBin = [System.IO.Directory]::GetFiles($env:windir + "\$Recycle.Bin\", "*.*")
+        foreach ($item in $recycleBin) {
+    Remove-Item -Path $item -Force
+}
+
+Write-Host "Disk cleanup and Recycle Bin emptied."
+
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function IP-to-FQDN {
+    # Prompt the user for an IP address
+    $ipAddress = Read-Host "Please enter an IP address to resolve"
+
+    # Attempt to resolve the IP to FQDN
+        try {
+    $fqdn = [System.Net.Dns]::GetHostEntry($ipAddress).HostName
+    Write-Host "The IP address $ipAddress resolves to the FQDN: $fqdn"
+        } catch {
+    Write-Host "Unable to resolve $ipAddress to a hostname. Error: $($_.Exception.Message)"
+}
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Arp-Table {
+    # Get the current IP address and subnet mask
+$ipConfig = Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -ne "Disconnected"}
+$ipAddress = $ipConfig.IPv4Address.IPAddress
+$subnetMask = $ipConfig.IPv4Address.PrefixLength
+
+# Calculate the network address
+$ipBytes = $ipAddress.Split('.') | ForEach-Object { [byte]$_ }
+$maskBytes = [byte[]](0,0,0,0)
+for ($i = 0; $i -lt 4; $i++) {
+    $maskBytes[$i] = [byte]((0xffffffff -shl (32 - $subnetMask)) -shr (8 * (3 - $i)) -band 0xff)
+}
+$networkBytes = for ($i = 0; $i -lt 4; $i++) { $ipBytes[$i] -band $maskBytes[$i] }
+$networkAddress = $networkBytes -join '.'
+
+# Perform ARP scan
+Write-Host "Scanning network: $networkAddress/$subnetMask"
+Write-Host "IP Address`t`tMAC Address`t`tManufacturer"
+Write-Host "----------`t`t-----------`t`t------------"
+
+1..254 | ForEach-Object {
+    $ip = "$networkAddress.$_"
+    Start-Process ping.exe -ArgumentList "-n 1 -w 100 $ip" -NoNewWindow -Wait
+}
+
+Get-NetNeighbor | Where-Object { $_.State -ne "Unreachable" } | ForEach-Object {
+    $ip = $_.IPAddress
+    $mac = $_.LinkLayerAddress
+    $manufacturer = switch -Regex ($mac.Substring(0, 8)) {
+        "00:50:56" { "VMware" }
+        "00:0C:29" { "VMware" }
+        "00:1C:14" { "VMware" }
+        "00:05:69" { "VMware" }
+        "00:1C:42" { "Parallels" }
+        "00:03:FF" { "Microsoft Hyper-V" }
+        "00:0F:4B" { "Oracle VirtualBox" }
+        default { "Unknown" }
+    }
+    Write-Host "$ip`t`t$mac`t$manufacturer"
+}
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Hard-disk-to-Virtual-Disk {
+    # Define the URL and file paths
+    $url = "https://download.sysinternals.com/files/Disk2vhd.zip"
+    $zipPath = "C:\Disk2vhd.zip"
+    $extractPath = "C:\Disk2vhd"
+
+    # Download the ZIP file
+    Invoke-WebRequest -Uri $url -OutFile $zipPath
+
+    # Extract the ZIP file
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $extractPath)
+
+    # List all executables in the extracted folder
+    $executables = Get-ChildItem -Path $extractPath -Filter *.exe | Select-Object -ExpandProperty Name
+
+    # Prompt the user to choose an executable to run
+    Write-Host "Available executables:"
+    $executables | ForEach-Object { Write-Host $_ }
+    $choice = Read-Host "Enter the name of the executable you want to run"
+
+    # Check if the script is running with admin privileges
+        if (-not (Test-Admin)) {
+    # If not, relaunch the script with admin privileges
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`""
+    Start-Process PowerShell -Verb RunAs -ArgumentList $arguments
+    exit
+}
+
+    # Run the chosen executable
+    $exePath = Join-Path -Path $extractPath -ChildPath $choice
+    Start-Process -FilePath $exePath
+
+    # Clean up by removing the downloaded zip file
+    Remove-Item -Path $zipPath    
+
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function PS-Remote-Connect-Updates {
+    # Prompt for server name
+    $serverName = Read-Host "Enter the server name you want to connect to"
+
+    # Enter PSSession
+    Enter-PSSession -ComputerName $serverName
+
+    # Check for pending updates
+    $updates = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates
+
+    # Display updates and ask if the user wants to proceed
+if ($updates.Count -eq 0) {
+    Write-Host "No pending updates found."
+} else {
+    Write-Host "Pending updates found:"
+    $updates | ForEach-Object { Write-Host $_.Title }
+    
+    $installNow = Read-Host "Would you like to install these updates now? (Yes/No)"
+    
+    if ($installNow -eq "Yes") {
+        # Install updates
+        $updates | ForEach-Object {
+            $installer = (New-Object -ComObject Microsoft.Update.Installer)
+            $installer.Updates = $_
+            $result = $installer.Install()
+            Write-Host "Installed: $($_.Title) with result: $($result.ResultCode)"
+        }
+        
+        # Ask if the user wants to reboot
+        $reboot = Read-Host "Would you like to reboot the server now? (Yes/No)"
+        if ($reboot -eq "Yes") {
+            Restart-Computer
+        }
+    } else {
+        # Schedule updates
+        $scheduleTime = Read-Host "Enter the time to schedule updates (e.g., '14:00')"
+        $scheduledTask = New-ScheduledTask -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-File C:\Path\To\UpdateScript.ps1') -Trigger (New-ScheduledTaskTrigger -Once -At $scheduleTime)
+        Register-ScheduledTask -TaskName "UpdateTask" -InputObject $scheduledTask
+    }
+}
+
+    # Generate HTML report
+    $reportContent = $updates | Select-Object Title, Description, KBArticleIDs | ConvertTo-Html -Title "Update Report" -PreContent "<h1>Update Report for $serverName</h1>"
+    $reportContent | Out-File "C:\serverupdates.html"
+
+    # Exit PSSession
+    Exit-PSSession
+
+    Write-Host "HTML report generated at C:\serverupdates.html"
+
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+function Check-for-specific-updates {
+
+    # Request admin privileges
+    if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Start-Process powershell.exe "-File `"$PSCommandPath`"" -Verb RunAs
+    Exit
+    }
+
+    # Import PSWindowsUpdate module
+        Import-Module PSWindowsUpdate
+
+    # Prompt for KB numbers
+    $kbNumbers = Read-Host "Enter KB numbers to check (separated by commas)"
+    $kbArray = $kbNumbers.Split(',') | ForEach-Object { $_.Trim() }
+
+    # Initialize results array
+    $results = @()
+
+    # Check each KB number
+    foreach ($kb in $kbArray) {
+        Write-Host "Checking $kb..." -NoNewline
+    $status = Get-WUHistory | Where-Object { $_.Title -like "*$kb*" }
+    if ($status) {
+        Write-Host " Installed" -ForegroundColor Green
+        $results += [PSCustomObject]@{
+            KBNumber = $kb
+            Status = "Installed"
+            Date = $status[0].Date
+        }
+    } else {
+        Write-Host " Not Installed" -ForegroundColor Red
+        $results += [PSCustomObject]@{
+            KBNumber = $kb
+            Status = "Not Installed"
+            Date = "N/A"
+        }
+    }
+
+    }
+
+    # Display results
+        Write-Host "`nCheck completed. Results:"
+    $results | Format-Table -AutoSize
+
+# Generate HTML report
+    $htmlReport = $results | ConvertTo-Html -Property KBNumber, Status, Date -Head "<style>table { border-collapse: collapse; } th, td { border: 1px solid black; padding: 5px; }</style>" -Title "Windows Update Check Results"
+    $htmlReport | Out-File "C:\update_result.html"
+
+    Write-Host "`nHTML report generated at C:\update_result.html"
+
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+
+function Install-specific-updates {
+
+    # Request admin privileges
+if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Start-Process powershell.exe "-File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
+# Prompt for KB numbers
+$kbNumbers = Read-Host "Enter KB numbers to check (separated by commas)"
+$kbArray = $kbNumbers -split ',' | ForEach-Object { $_.Trim() }
+
+# Initialize results array
+$results = @()
+
+# Check each KB number
+foreach ($kb in $kbArray) {
+    Write-Host "Checking KB$kb..." -NoNewline
+    $hotfix = Get-HotFix -Id $kb -ErrorAction SilentlyContinue
+    
+    if ($hotfix) {
+        Write-Host " Installed" -ForegroundColor Green
+        $results += [PSCustomObject]@{
+            KB = $kb
+            Status = "Installed"
+            InstallDate = $hotfix.InstalledOn
+        }
+    } else {
+        Write-Host " Not Installed" -ForegroundColor Red
+        $results += [PSCustomObject]@{
+            KB = $kb
+            Status = "Not Installed"
+            InstallDate = $null
+        }
+        
+        # Download from Windows Update Catalog
+        Write-Host "Downloading $kb from Windows Update Catalog..." -NoNewline
+        $downloadUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$kb"
+        Start-Process $downloadUrl
+        Write-Host " Please download manually and save to C:\updatestoinstall" -ForegroundColor Yellow
+    }
+}
+
+# Display results
+Write-Host "`nScript completed. Results:"
+$results | Format-Table -AutoSize
+
+# Export results to HTML
+$htmlPath = "C:\update result.html"
+$results | ConvertTo-Html -Property KB, Status, InstallDate -Head "<style>table { border-collapse: collapse; } th, td { border: 1px solid black; padding: 5px; }</style>" | Out-File $htmlPath
+
+Write-Host "`nResults exported to $htmlPath"
+
+# Prompt to install updates
+$install = Read-Host "Do you want to install the downloaded updates? (Y/N)"
+if ($install -eq 'Y') {
+    $updates = Get-ChildItem "C:\updatestoinstall\*.msu"
+    foreach ($update in $updates) {
+        Write-Host "Installing $($update.Name)..."
+        Start-Process "wusa.exe" -ArgumentList "$($update.FullName) /quiet /norestart" -Wait
+    }
+    Write-Host "Installation complete. Please restart your computer to apply the updates."
+}
+Read-Host "Press Enter to go back to the TRD IT TEST App"
+
+}
+
+function stop-disable-print-spooler {
+
+    # Stop the Print Spooler service
+Stop-Service -Name Spooler -Force
+
+# Disable the Print Spooler service
+Set-Service -Name Spooler -StartupType Disabled
+
+Read-Host "Press Enter to go back to the TRD IT TEST App"
+
+}
+
+function OS-version-and-type {
+
+    (Get-CimInstance Win32_OperatingSystem).Caption, (Get-CimInstance Win32_OperatingSystem).Version
+
+    Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+# +++++++++++++++++++++++++++ Sub menu's ++++++++++++++++++++++++++++++++++++++++++++++
+
+function chrome {
+    # Define the download URL and file paths
+$chromeUrl = "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
+$downloadPath = "$env:USERPROFILE\Downloads\googlechromestandaloneenterprise64.msi"
+
+# Download the Chrome installer
+Write-Host "Downloading Google Chrome installer..."
+Invoke-WebRequest -Uri $chromeUrl -OutFile $downloadPath
+
+# Install Chrome
+Write-Host "Installing Google Chrome..."
+Start-Process -FilePath "msiexec.exe" -ArgumentList "/i $downloadPath /quiet /norestart" -Wait
+
+# Check if the installation process is running and show progress
+$processName = "msiexec"
+do {
+    $process = Get-Process -Name $processName -ErrorAction SilentlyContinue
+    if ($process) {
+        Write-Host "Installation in progress..." -NoNewline
+        Start-Sleep -Seconds 2
+    }
+} while ($process)
+
+# Delete the installer file
+Write-Host "Removing installer file..."
+Remove-Item -Path $downloadPath -Force
+
+Write-Host "Google Chrome installation complete."
+}
+
+
+# +++++++++++++++++++++++++++ Sub menu controller ++++++++++++++++++++++++++++++++++++++++++++++
+
+function Invoke-AppInstallersmenu {
+    do {
+        Show-AppInstallersmenu
+        $choice = Read-Host "Please make a selection"
+        switch ($choice) {
+            '1' { Chrome}
+            '2' { firefox}
+            '3' { appunkown}
+            '4' { return }
+            default { Write-Host "Invalid selection. Please try again." -ForegroundColor Red }
+        }
+        pause
+    } while ($true)
+
+Read-Host "Press Enter to go back to the TRD IT TEST App"
+}
+
+
+# +++++++++++++++++++++++++++end Sub menu controller ++++++++++++++++++++++++++++++++++++++++++++++
+
+while ($true) {
+    $choice = Show-MainMenu
+    switch ($choice) {
+        1 { Ping-Test }
+        2 { Tracert-Test }
+        3 { Network-Adapter-Info }
+        4 { Device-Information }
+        5 {Disk-Temp-file-clean}
+        6 {IP-to-FQDN}
+        7 {Arp-Table}
+        8 {Hard-disk-to-Virtual-Disk}
+        9 {PS-Remote-Connect-Updates}
+        10 {Check-for-specific-updates}
+        11 {Install-specific-updates}
+        12 {stop-disable-print-spooler}
+        13 {OS-version-and-type}
+        14 { Invoke-AppInstallersmenu}
+        15 { break }
+        default { Write-Host "Invalid selection, please try again." }
+    }
+}
